@@ -11,12 +11,18 @@ import random
 from engine_wrapper import MinimalEngine
 from typing import Any
 
+class DLVCInterface(MinimalEngine):
+    def search(self, board: chess.Board, *args: Any) -> PlayResult:
+        """Choose a random move."""
+        return PlayResult(random.choice(list(board.legal_moves)), None)
+
+
+
 
 class ExampleEngine(MinimalEngine):
     """An example engine that all homemade engines inherit."""
 
     pass
-
 
 # Strategy names and ideas from tom7's excellent eloWorld video
 
