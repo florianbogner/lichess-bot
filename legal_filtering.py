@@ -1,6 +1,7 @@
 import chess
 import numpy as np
-from policy_indices import policy_index
+from policy_indices import policy_index, move2ix
+import torch
 
 def filter_legal(board, model_output):
     sorted_moves = create_move_dict(model_output)
@@ -21,3 +22,14 @@ def create_move_dict(model_output):
 
     sorted_dict = dict(sorted(move_dict.items(), key=lambda item: item[1], reverse=True))
     return sorted_dict
+
+def get_legal_moves(board):
+    legal_moves = torch.zeros(1858)
+
+    for move in board.legal_moves:
+        if board.turn == chess.WHITE:
+            legal_moves[move2ix(move.uci(), 'white')] = 1
+        else:
+            legal_moves[move2ix(move.uci(), 'black')] = 1
+    
+    return legal_moves
