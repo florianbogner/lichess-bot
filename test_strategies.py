@@ -53,7 +53,7 @@ def flip_move(move):
 
 board = chess.Board()
 
-MODEL_PATH = './../chess-teacher/output/maia-move-05-19-23_3.43391.pkl'
+MODEL_PATH = './../chess-teacher/output/maia-move-05-19-23_2.51139.pkl'
 model = pickle.load(open(MODEL_PATH, 'rb'))
 model.eval()
 with torch.no_grad():  

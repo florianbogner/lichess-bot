@@ -11,7 +11,8 @@ import random
 from engine_wrapper import MinimalEngine
 from typing import Any
 import pickle
-from legal_filtering import filter_legal
+from policy_indices import policy_index
+from legal_filtering import get_legal_moves
 import numpy as np
 import torch
 import re
@@ -67,16 +68,22 @@ class DLVCInterface(MinimalEngine):
         return move.translate(str.maketrans("abcdefgh12345678", "hgfedcba87654321"))
 
     def search(self, board: chess.Board, *args: Any) -> PlayResult:
-        MODEL_PATH = './../chess-teacher/output/maia-move-05-19-23_3.43391.pkl'
+        MODEL_PATH = './../chess-teacher/output/maia-move-05-19-23_2.51139.pkl'
         model = pickle.load(open(MODEL_PATH, 'rb'))
         model.eval()
         with torch.no_grad():  
             model_output = model(torch.tensor(np.expand_dims(self.board2tensor(board).cpu(), 0 ), device="cuda"))
 
-        if board.turn == chess.WHITE:
-            prediction = filter_legal(board, model_output)
-        else:
-            prediction = self.flip_move(filter_legal(board.mirror(), model_output))
+        prediction_full = get_legal_moves(board).to('cuda') * model_output
+        prediction = policy_index[torch.argmax(prediction_full)]
+
+        if board.turn == chess.BLACK:
+            prediction = self.flip_move(prediction)
+        
+        #if board.turn == chess.WHITE:
+        #    prediction = filter_legal(board, model_output)
+        #else:
+        #    prediction = self.flip_move(filter_legal(board.mirror(), model_output))
 
         return chess.engine.PlayResult(move=chess.Move.from_uci(prediction), ponder = None)
         
