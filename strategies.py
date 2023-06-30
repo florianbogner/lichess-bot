@@ -14,6 +14,11 @@ import pickle
 from legal_filtering import filter_legal
 import numpy as np
 import torch
+import re
+
+
+def has_numbers(inputString):
+    return bool(re.search(r'\d', inputString))
 
 class DLVCInterface(MinimalEngine):
     def board2tensor(self, board):
@@ -93,7 +98,58 @@ class RandomMove(ExampleEngine):
     def search(self, board: chess.Board, *args: Any) -> PlayResult:
         """Choose a random move."""
         return PlayResult(random.choice(list(board.legal_moves)), None)
+    
+class LLM(ExampleEngine):
+    def generate_san(self, move_stack):
+        play_count = 1
+        san_string = ""
+        board = chess.Board()
+        for move in move_stack:
+            if board.turn == chess.WHITE:
+                san_string += str(play_count) + "."
+                play_count += 1
+            san_string += board.san(move) + " "
+            board.push(move)
+        return san_string
 
+    def get_move_from_llm(self, output_str, board):
+        # print("Output str: ", output_str)
+
+        splitted = str(output_str).replace(".", " ").replace(":", " ").split(" ")
+        cleaned_moves = [x for x in splitted if has_numbers(x) and len(x) > 1 and len(x) <= 5 and not x.isnumeric()]
+
+        # print("Cleaned moves: ", cleaned_moves)
+        for move in cleaned_moves:
+            try:
+                move = board.parse_san(move)
+                # print("trying move", move)
+                if move in board.legal_moves:
+                    return move
+            except:
+                pass
+        return None
+
+    def search(self, board: chess.Board, *args: Any) -> PlayResult:
+
+        san = self.generate_san(board.move_stack)
+        print(san)
+
+        turn = "white" if board.turn == chess.WHITE else "black"
+        prompt = f'In the following chess game, you play {turn}: [Event "Rated Classical game https://lichess.org/tounament/xxxx"] [Date „??“] [Round "-"] [White "???"] [Black "???"] [Result "1-0"] [WhiteElo "2800"] [BlackElo „2800"] [WhiteRatingDiff "??"] [BlackRatingDiff "??"] [ECO "??"] [Opening „??"] [TimeControl "300+0"] [Termination "Time forfeit"] {san}  Choose your best next move.'
+        inputs = self.tokenizer(prompt, return_tensors='pt').to(self.model.device)
+        input_length = inputs.input_ids.shape[1]
+        outputs = self.model.generate(
+            **inputs, max_new_tokens=200, do_sample=True, temperature=0.7, top_p=0.7, top_k=50, return_dict_in_generate=True,
+        )
+        token = outputs.sequences[0, input_length:]
+        output_str = self.tokenizer.decode(token)
+
+        move = self.get_move_from_llm(output_str, board)
+        print("Move from LLM: ", move)
+        if move != None:
+            return PlayResult(move, None)
+        else:   
+            return PlayResult(random.choice(list(board.legal_moves)), None)
 
 class Alphabetical(ExampleEngine):
     """Get the first move when sorted by san representation."""

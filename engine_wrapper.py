@@ -12,6 +12,8 @@ import random
 from collections import Counter
 from collections.abc import Generator, Callable
 from contextlib import contextmanager
+
+import torch
 import config
 import model
 import lichess
@@ -27,6 +29,9 @@ MOVE = Union[chess.engine.PlayResult, list[chess.Move]]
 logger = logging.getLogger(__name__)
 
 out_of_online_opening_book_moves: Counter[str] = Counter()
+
+import transformers
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 
 @contextmanager
@@ -540,6 +545,14 @@ class MinimalEngine(EngineWrapper):
         self.engine_name = self.__class__.__name__ if name is None else name
 
         self.engine = FillerEngine(self, name=self.engine_name)
+
+        MIN_TRANSFORMERS_VERSION = '4.25.1'
+        # check transformers version
+        assert transformers.__version__ >= MIN_TRANSFORMERS_VERSION, f'Please upgrade transformers to version {MIN_TRANSFORMERS_VERSION} or higher.'
+
+        # init
+        self.tokenizer = AutoTokenizer.from_pretrained("Waterhorse/chessgpt-base-v1")
+        self.model = AutoModelForCausalLM.from_pretrained("Waterhorse/chessgpt-base-v1", torch_dtype=torch.float16).to('cuda:0')
 
     def get_pid(self) -> str:
         """Homemade engines don't have a pid, so we return a question mark."""

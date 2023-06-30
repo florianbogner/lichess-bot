@@ -601,6 +601,7 @@ def play_game(li: lichess.Lichess,
                         tell_user_game_result(game, board)
                         conversation.send_message("player", goodbye)
                         conversation.send_message("spectator", goodbye_spectators)
+                        engine.quit()
 
                     wb = "w" if board.turn == chess.WHITE else "b"
                     terminate_time = (upd[f"{wb}time"] + upd[f"{wb}inc"]) / 1000 + 60
