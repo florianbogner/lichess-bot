@@ -27,9 +27,10 @@ def get_legal_moves(board):
     legal_moves = torch.zeros(1858)
 
     for move in board.legal_moves:
+        move_uci = move.uci()[:4]
         if board.turn == chess.WHITE:
-            legal_moves[move2ix(move.uci(), 'white')] = 1
+            legal_moves[move2ix(move_uci, 'white')] = 1
         else:
-            legal_moves[move2ix(move.uci(), 'black')] = 1
+            legal_moves[move2ix(move_uci, 'black')] = 1
     
     return legal_moves
