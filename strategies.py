@@ -15,10 +15,19 @@ from policy_indices import policy_index
 from legal_filtering import get_legal_moves
 import numpy as np
 import torch
+import torch.nn as nn
 
 class DLVCInterface(MinimalEngine):
+    def __init__(self, commands, options, stderr, draw_or_resign, cwd=None):
+        super(DLVCInterface, self).__init__(commands, options, stderr, draw_or_resign, cwd=cwd)
+        self.model = 'multi-task-move'
+        self.move_history = 8
+
     def board2tensor(self, board):
-        n_channels = 17
+        if self.model == 'multi-task-move':
+            n_channels = 33
+        else:
+            n_channels = 17
         board_tensor = np.zeros((n_channels, 8, 8), dtype=np.float32)
 
         for color in [chess.WHITE, chess.BLACK]:
@@ -48,6 +57,15 @@ class DLVCInterface(MinimalEngine):
         # seventeenth channel: whites turn
         board_tensor[16, :, :] = (board.turn == chess.WHITE)
 
+        counter = 17
+        move_history = board.move_stack
+        for move in reversed(move_history):
+            board_tensor[counter, chess.square_rank(move.from_square), chess.square_file(move.from_square)] = 1
+            board_tensor[counter+1, chess.square_rank(move.to_square), chess.square_file(move.to_square)] = 1
+            counter += 2
+            if counter >= 33:
+                break
+
         # # move encoding
         # # 18th channel: from square
         # board_tensor[17, chess.square_rank(move.from_square), chess.square_file(move.from_square)] = 1
@@ -63,17 +81,25 @@ class DLVCInterface(MinimalEngine):
         return move.translate(str.maketrans("abcdefgh12345678", "hgfedcba87654321"))
 
     def search(self, board: chess.Board, *args: Any) -> PlayResult:
-        MODEL_PATH = './../chess-teacher/output/maia-move-05-19-23_2.51139.pkl'
+        MODEL_PATH = './models/multi-task-move-07-04-23_21-49-54_0.9423.pkl'
         model = pickle.load(open(MODEL_PATH, 'rb'))
         model.eval()
+        #print([module for module in model.modules() if not isinstance(module, nn.Sequential)])
+
         with torch.no_grad():  
-            model_output = model(torch.tensor(np.expand_dims(self.board2tensor(board).cpu(), 0 ), device="cuda"))
+            model_output = model(torch.tensor(np.expand_dims(self.board2tensor(board).cpu(), 0), device="cuda"))
+            if self.model == 'multi-task-move':
+                model_output = model_output[0]
+        
+        model_output = torch.nn.functional.softmax(model_output)
 
         prediction_full = get_legal_moves(board).to('cuda') * model_output
         prediction = policy_index[torch.argmax(prediction_full)]
 
         if board.turn == chess.BLACK:
             prediction = self.flip_move(prediction)
+
+        prediction = prediction[:4]
         
         #if board.turn == chess.WHITE:
         #    prediction = filter_legal(board, model_output)
