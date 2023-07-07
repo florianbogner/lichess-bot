@@ -42,6 +42,8 @@ class Conversation:
         logger.info(f'*** {self.game.url()} [{line.room}] {line.username}: {line.text.encode("utf-8")!r}')
         if line.text[0] == self.command_prefix:
             self.command(line, game, line.text[1:].lower())
+        elif "If you type" in line.text:
+            self.send_reply(line, "go")
 
     def command(self, line: ChatLine, game: model.Game, cmd: str) -> None:
         """
