@@ -11,11 +11,21 @@ import random
 from engine_wrapper import MinimalEngine
 from typing import Any
 import pickle
+import io
 from policy_indices import policy_index
 from legal_filtering import get_legal_moves
 import numpy as np
 import torch
 import torch.nn as nn
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+class CPU_Unpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == 'torch.storage' and name == '_load_from_bytes':
+            return lambda b: torch.load(io.BytesIO(b), map_location='cpu')
+        else:
+            return super().find_class(module, name)
 
 class DLVCInterface(MinimalEngine):
     def __init__(self, commands, options, stderr, draw_or_resign, cwd=None):
@@ -75,25 +85,26 @@ class DLVCInterface(MinimalEngine):
         if board.turn == chess.BLACK:
             board_tensor = np.flip(np.flip(board_tensor, axis=2), axis=1).copy()
 
-        return torch.tensor(board_tensor, device="cuda")
+        return torch.tensor(board_tensor, device=DEVICE)
 
     def flip_move(self, move):
         return move.translate(str.maketrans("abcdefgh12345678", "hgfedcba87654321"))
 
     def search(self, board: chess.Board, *args: Any) -> PlayResult:
-        MODEL_PATH = './models/multi-task-move-07-04-23_21-49-54_0.9423.pkl'
-        model = pickle.load(open(MODEL_PATH, 'rb'))
+        MODEL_PATH = 'models/multi-task-move-07-07-23_08-15-07_0.94003.pkl'
+        model = CPU_Unpickler(open(MODEL_PATH, 'rb')).load()
+        model.to(DEVICE)
         model.eval()
         #print([module for module in model.modules() if not isinstance(module, nn.Sequential)])
 
         with torch.no_grad():  
-            model_output = model(torch.tensor(np.expand_dims(self.board2tensor(board).cpu(), 0), device="cuda"))
+            model_output = model(torch.tensor(np.expand_dims(self.board2tensor(board).cpu(), 0), device=DEVICE))
             if self.model == 'multi-task-move':
                 model_output = model_output[0]
         
         model_output = torch.nn.functional.softmax(model_output)
 
-        prediction_full = get_legal_moves(board).to('cuda') * model_output
+        prediction_full = get_legal_moves(board).to(DEVICE) * model_output
         prediction = policy_index[torch.argmax(prediction_full)]
 
         if board.turn == chess.BLACK:

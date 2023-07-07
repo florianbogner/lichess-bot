@@ -8,7 +8,7 @@ from policy_indices import policy_index
 import pickle
 
 # Config
-C_DEVICE = 'cuda'
+C_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 C_HIDDEN_CHANNELS = 64
 C_OUTPUT_PLANES = 80
 C_OUTCOME_LOSS_FN = 'mse'
