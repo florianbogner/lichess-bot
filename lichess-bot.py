@@ -569,13 +569,22 @@ def play_game(li: lichess.Lichess,
         prior_game = None
         board = chess.Board()
         upd: dict[str, Any] = game.state
+        fake_think = True
         while not terminated:
             move_attempted = False
             try:
                 upd = upd or next_update(lines)
                 u_type = upd["type"] if upd else "ping"
                 if u_type == "chatLine":
-                    conversation.react(ChatLine(upd), game)
+                    cLine = ChatLine(upd)
+                    if (cLine.text == "go") or (cLine.text == "fast"):
+                        fake_think = False
+                        conversation.send_reply(cLine, "I will play fast now. If you want me to play slow, just send \"slow\". ")
+                    elif (cLine.text == "slow"):
+                        fake_think = True
+                        conversation.send_reply(cLine, "I will play slow now. If you want me to play fast, just send \"go\" or \"fast\". ")
+                    else:
+                        conversation.react(cLine, game)
                 elif u_type == "gameState":
                     game.state = upd
                     board = setup_board(game)
@@ -583,7 +592,8 @@ def play_game(li: lichess.Lichess,
                         disconnect_time = correspondence_disconnect_time
                         say_hello(conversation, hello, hello_spectators, board)
                         start_time = time.perf_counter_ns()
-                        fake_thinking(config, board, game)
+                        if fake_think:
+                            fake_thinking(config, board, game)
                         print_move_number(board)
                         move_attempted = True
                         engine.play_move(board,
@@ -638,13 +648,24 @@ def say_hello(conversation: Conversation, hello: str, hello_spectators: str, boa
         conversation.send_message("player", hello)
         conversation.send_message("spectator", hello_spectators)
 
-
+import random
 def fake_thinking(config: Configuration, board: chess.Board, game: model.Game) -> None:
     """Wait some time before starting to search for a move."""
     if config.fake_think_time and len(board.move_stack) > 9:
-        delay = min(game.clock_initial, game.my_remaining_seconds()) * 0.015
+        delay = min(game.clock_initial, game.my_remaining_seconds()) * 0.15
         accel = 1 - max(0, min(100, len(board.move_stack) - 20)) / 150
-        sleep = min(5, delay * accel)
+        sleep_max = min(max(0, delay * accel), game.my_remaining_seconds())
+        sleep_min = min(game.clock_initial * 0.01, game.my_remaining_seconds())
+        if game.my_remaining_seconds() < 60:
+            sleep_min = 0
+            sleep_max *= 0.5
+        sleep = random.randint(int(sleep_min), int(sleep_max))
+        logger.info(F"sleep_min: {sleep_min} / sleep: {sleep} / sleep_max: {sleep_max}")
+        time.sleep(sleep)
+    elif len(board.move_stack) <= 9:
+        sleep_max = min(game.clock_initial // 60, 5)
+        sleep = random.randint(0, sleep_max)
+        logger.info(F"sleep_min: {0} / sleep: {sleep} / sleep_max: {sleep_max}")
         time.sleep(sleep)
 
 
