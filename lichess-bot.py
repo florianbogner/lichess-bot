@@ -652,16 +652,22 @@ import random
 def fake_thinking(config: Configuration, board: chess.Board, game: model.Game) -> None:
     """Wait some time before starting to search for a move."""
     if config.fake_think_time and len(board.move_stack) > 9:
-        delay = min(game.clock_initial, game.my_remaining_seconds()) * 0.15
-        accel = 1 - max(0, min(100, len(board.move_stack) - 20)) / 150
-        sleep_max = min(max(0, delay * accel), game.my_remaining_seconds())
-        sleep_min = min(game.clock_initial * 0.01, game.my_remaining_seconds())
-        if game.my_remaining_seconds() < 60:
-            sleep_min = 0
-            sleep_max *= 0.5
-        sleep = random.randint(int(sleep_min), int(sleep_max))
-        logger.info(F"sleep_min: {sleep_min} / sleep: {sleep} / sleep_max: {sleep_max}")
-        time.sleep(sleep)
+        try:
+            delay = min(game.clock_initial, game.my_remaining_seconds()) * 0.15
+            accel = 1 - max(0, min(100, len(board.move_stack) - 20)) / 150
+            sleep_max = min(max(0, delay * accel), min(game.my_remaining_seconds(), 60))
+            sleep_min = min(game.clock_initial * 0.01, game.my_remaining_seconds())
+            if game.my_remaining_seconds() < 60:
+                sleep_min = 0
+                sleep_max *= 0.5
+            if sleep_min > sleep_max:
+                sleep = sleep_max
+            else:
+                sleep = random.randint(int(sleep_min), int(sleep_max))
+            logger.info(F"sleep_min: {sleep_min} / sleep: {sleep} / sleep_max: {sleep_max}")
+            time.sleep(sleep)
+        except:
+            time.sleep(0)
     elif len(board.move_stack) <= 9:
         sleep_max = min(game.clock_initial // 60, 5)
         sleep = random.randint(0, sleep_max)
