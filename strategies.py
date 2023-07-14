@@ -18,7 +18,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = "cpu"#torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class CPU_Unpickler(pickle.Unpickler):
     def find_class(self, module, name):
@@ -91,7 +91,7 @@ class DLVCInterface(MinimalEngine):
         return move.translate(str.maketrans("abcdefgh12345678", "hgfedcba87654321"))
 
     def search(self, board: chess.Board, *args: Any) -> PlayResult:
-        MODEL_PATH = 'models/multi-task-move-07-07-23_08-15-07_0.94003.pkl'
+        MODEL_PATH = 'models/multi-task-move-07-06-23_22-15-52_0.95858.pkl'
         model = CPU_Unpickler(open(MODEL_PATH, 'rb')).load()
         model.to(DEVICE)
         model.eval()
@@ -102,10 +102,14 @@ class DLVCInterface(MinimalEngine):
             if self.model == 'multi-task-move':
                 model_output = model_output[0]
         
-        model_output = torch.nn.functional.softmax(model_output)
+        model_output = torch.nn.functional.softmax(model_output, dim=-1)[0]
 
         prediction_full = get_legal_moves(board).to(DEVICE) * model_output
-        prediction = policy_index[torch.argmax(prediction_full)]
+        prediction_full = prediction_full / prediction_full.sum()
+
+        sampled_index = np.random.choice(np.arange(len(prediction_full)), p=prediction_full.numpy())
+
+        prediction = policy_index[sampled_index]
 
         if board.turn == chess.BLACK:
             prediction = self.flip_move(prediction)
