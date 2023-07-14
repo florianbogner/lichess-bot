@@ -655,7 +655,7 @@ def fake_thinking(config: Configuration, board: chess.Board, game: model.Game) -
         try:
             delay = min(game.clock_initial, game.my_remaining_seconds()) * 0.15
             accel = 1 - max(0, min(100, len(board.move_stack) - 20)) / 150
-            sleep_max = min(max(0, delay * accel), min(game.my_remaining_seconds(), 60))
+            sleep_max = min(max(0, delay * accel), min(game.my_remaining_seconds(), game.clock_initial // 10))
             sleep_min = min(game.clock_initial * 0.01, game.my_remaining_seconds())
             if game.my_remaining_seconds() < 60:
                 sleep_min = 0
